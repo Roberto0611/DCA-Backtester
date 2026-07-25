@@ -19,6 +19,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/backtest", srv.HandleBacktest)
+	mux.Handle("/", http.FileServer(http.Dir("web")))
 
 	addr := ":8080"
 	log.Printf("escuchando en http://localhost%s\n", addr)

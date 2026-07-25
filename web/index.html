@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DCA Backtester</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --border: #e3e5e9;
+    --text: #1a1d23;
+    --muted: #6b7280;
+    --accent: #3b82f6;
+    --accent-dark: #2563eb;
+    --dca: #3b82f6;
+    --lump: #10b981;
+    --danger: #dc2626;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 48px 16px;
+  }
+
+  .page {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+
+  header {
+    margin-bottom: 28px;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 24px;
+  }
+
+  form {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    align-items: end;
+  }
+
+  .field label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: #fafafa;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    background: #fff;
+  }
+
+  button {
+    grid-column: 1 / -1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  button:hover { background: var(--accent-dark); }
+  button:active { transform: translateY(1px); }
+
+  #error {
+    color: var(--danger);
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    margin-top: 20px;
+    display: none;
+  }
+
+  #results {
+    margin-top: 28px;
+    display: none;
+  }
+
+  #summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .stat {
+    padding: 16px;
+    border-radius: 10px;
+    background: #fafbfc;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+  }
+
+  .stat.dca { border-left-color: var(--dca); }
+  .stat.lump { border-left-color: var(--lump); }
+
+  .stat h3 {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .stat p {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+
+  .stat .pct {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  #winner {
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  .chart-wrap {
+    background: #fafbfc;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  @media (max-width: 640px) {
+    form, #summary { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>DCA vs Lump Sum</h1>
+    <p>Backtest histórico sobre SPY (proxy del S&amp;P 500)</p>
+  </header>
+
+  <div class="card">
+    <form id="form">
+      <div class="field">
+        <label for="start_date">Fecha inicio</label>
+        <input type="date" id="start_date" value="2015-01-01" required>
+      </div>
+      <div class="field">
+        <label for="end_date">Fecha fin</label>
+        <input type="date" id="end_date" value="2025-01-01" required>
+      </div>
+      <div class="field">
+        <label for="monthly_amount">Monto mensual ($)</label>
+        <input type="number" id="monthly_amount" value="500" min="1" required>
+      </div>
+      <button type="submit">Simular</button>
+    </form>
+
+    <div id="error"></div>
+
+    <div id="results">
+      <div id="summary">
+        <div class="stat"><h3>Invertido</h3><p id="invested"></p></div>
+        <div class="stat dca"><h3>DCA</h3><p id="dcaFinal"></p><span class="pct" id="dcaPct"></span></div>
+        <div class="stat lump"><h3>Lump sum</h3><p id="lsFinal"></p><span class="pct" id="lsPct"></span></div>
+      </div>
+      <p id="winner"></p>
+      <div class="chart-wrap">
+        <canvas id="chart" height="110"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('form');
+const errorEl = document.getElementById('error');
+const resultsEl = document.getElementById('results');
+let chart = null;
+
+const money = n => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const pct = n => (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorEl.style.display = 'none';
+
+  const body = {
+    start_date: document.getElementById('start_date').value,
+    end_date: document.getElementById('end_date').value,
+    monthly_amount: Number(document.getElementById('monthly_amount').value),
+  };
+
+  let resp;
+  try {
+    resp = await fetch('/api/backtest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    showError('No se pudo contactar al servidor: ' + err.message);
+    return;
+  }
+
+  if (!resp.ok) {
+    showError(await resp.text());
+    return;
+  }
+
+  render(await resp.json());
+});
+
+function showError(msg) {
+  errorEl.textContent = msg;
+  errorEl.style.display = 'block';
+  resultsEl.style.display = 'none';
+}
+
+function render(result) {
+  resultsEl.style.display = 'block';
+
+  document.getElementById('invested').textContent = money(result.dca.TotalInvested);
+  document.getElementById('dcaFinal').textContent = money(result.dca.FinalValue);
+  document.getElementById('dcaPct').textContent = pct(result.dca.ReturnPct);
+  document.getElementById('lsFinal').textContent = money(result.lump_sum.FinalValue);
+  document.getElementById('lsPct').textContent = pct(result.lump_sum.ReturnPct);
+
+  const diff = result.lump_sum.FinalValue - result.dca.FinalValue;
+  document.getElementById('winner').textContent = diff > 0
+    ? `Lump sum le hubiera ganado a DCA por ${money(diff)}`
+    : `DCA le hubiera ganado a lump sum por ${money(-diff)}`;
+
+  const data = {
+    labels: ['Invertido', 'DCA', 'Lump sum'],
+    datasets: [{
+      label: 'Valor ($)',
+      data: [result.dca.TotalInvested, result.dca.FinalValue, result.lump_sum.FinalValue],
+      backgroundColor: ['#c7cbd1', '#3b82f6', '#10b981'],
+      borderRadius: 6,
+    }],
+  };
+
+  const options = {
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { ticks: { callback: v => money(v) }, grid: { color: '#eee' } },
+      x: { grid: { display: false } },
+    },
+  };
+
+  if (chart) {
+    chart.data = data;
+    chart.update();
+  } else {
+    chart = new Chart(document.getElementById('chart'), { type: 'bar', data, options });
+  }
+}
+
+// corre una simulación inicial con los valores por defecto
+form.dispatchEvent(new Event('submit'));
+</script>
+</body>
+</html>
